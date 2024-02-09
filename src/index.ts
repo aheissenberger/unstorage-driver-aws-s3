@@ -170,9 +170,9 @@ export default defineDriver((opts: S3StorageOptions) => {
         async getKeys() {
             return await listKeys();
         },
-        async getMeta(key) {
-            return await getMeta(key);
-        },
+        // async getMeta(key) {
+        //     return await getMeta(key);
+        // },
         async clear() {
             const keys = await listKeys();
             await Promise.all(keys.map((key) => removeItem(key)));
