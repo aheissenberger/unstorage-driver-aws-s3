@@ -7,6 +7,7 @@ export interface S3StorageOptions {
     region?: string;
     credentials?: any;
     ttl?: number;
+    ttlUpdateLastModified?: boolean;
     client?: S3Client;
 }
 
@@ -56,52 +57,43 @@ export default defineDriver((opts: S3StorageOptions) => {
     }
 
     async function getItemValue(key: string): Promise<any> {
-        const response = await getClient().send(
-            new GetObjectCommand({
-                Bucket: opts.bucket,
-                Key: createKey(key),
-            })
-        );
+        console.log('getMeta', key, createKey(key));
+        try {
+            const response = await getClient().send(
 
-        if (response === undefined || response.Body === undefined) {
-            return null;
-        }
+                new GetObjectCommand({
+                    Bucket: opts.bucket,
+                    Key: createKey(key),
+                    IfModifiedSince: ttl > 0 ? new Date((getTimestamp() - ttl) * 1000) : undefined,
+                })
+            );
 
-        if (ttl > 0 && response?.ExpiresString !== undefined) {
-            if (new Date(response.ExpiresString) < new Date()) {
-                await removeItem(key)
+            if (response === undefined || response.Body === undefined) {
                 return null;
             }
-            if (response?.LastModified !== undefined) {
-                const lastModified = (response.LastModified.getTime() / 1000) || 0;
-                const timestamp = getTimestamp();
-                if (timestamp > (lastModified + ttl)) {
-                    await removeItem(key)
-                    return null;
-                }
-            }
-        }
 
-        return response.Body.transformToString();
+            return response.Body.transformToString();
+        } catch (e) {
+            if (typeof e === 'object' && e?.hasOwnProperty('name') && (e as { name?: string })?.name === "304") {
+                return null;
+            }
+            throw e;
+        }
     }
 
     async function putItemValue(
         key: string,
-        value: any,
-        options: S3SetItemOptions = {}
+        value: any
     ): Promise<void> {
-        const ttlOverride =
-            options.ttl !== undefined ? parseInt(String(options.ttl)) : ttl;
-        if (Number.isNaN(ttlOverride) || ttlOverride < 0) {
-            throw createError(DRIVER_NAME, "Invalid option `ttl`.");
-        }
 
+        if (ttl > 0 && opts.ttlUpdateLastModified === true) {
+            await removeItem(key);
+        }
         await getClient().send(
             new PutObjectCommand({
                 Bucket: opts.bucket,
                 Key: createKey(key),
                 Body: value,
-                Expires: ttlOverride > 0 ? new Date(Date.now() + ttlOverride * 1000) : undefined,
             })
         );
     }
@@ -126,12 +118,12 @@ export default defineDriver((opts: S3StorageOptions) => {
 
         items = items || [];
 
-        // if (ttl > 0) {
-        //     const timestamp = getTimestamp();
-        //     items = items.filter((item) => parseInt(item?.Contents || 0) >= timestamp);
-        // }
 
-        let keys = items.flatMap((item) => item.Key ? decodeKey(item.Key) : []);
+        const ttlMark = new Date(getTimestamp() - ttl * 1000);
+        let keys = items.flatMap((item) => {
+            if (ttl > 0 && item.LastModified && ttlMark < item.LastModified) return []
+            return item.Key ? decodeKey(item.Key) : []
+        });
         if (IsTruncated) {
             keys = keys.concat(await listKeys(NextContinuationToken));
         }
@@ -139,6 +131,26 @@ export default defineDriver((opts: S3StorageOptions) => {
         return keys;
     }
 
+    /*
+    // in production this breaks as unstorage adds the suffix "$" to the key
+    async function getMeta(key: string) {
+        console.log('getMeta', key, createKey(key));
+        const response = await getClient().send(
+
+            new GetObjectCommand({
+                Bucket: opts.bucket,
+                Key: createKey(key),
+            })
+        );
+        if (response === undefined || response.Body === undefined) {
+            return null;
+        }
+        return {
+            mtime: response?.LastModified,
+            ...response?.Metadata
+        };
+    }
+*/
     return {
         name: DRIVER_NAME,
         options: opts,
@@ -149,14 +161,17 @@ export default defineDriver((opts: S3StorageOptions) => {
         async getItem(key) {
             return await getItemValue(key);
         },
-        async setItem(key, value, opts: S3SetItemOptions = {}) {
-            await putItemValue(key, value, opts);
+        async setItem(key, value) {
+            await putItemValue(key, value);
         },
         async removeItem(key) {
             await removeItem(key);
         },
         async getKeys() {
             return await listKeys();
+        },
+        async getMeta(key) {
+            return await getMeta(key);
         },
         async clear() {
             const keys = await listKeys();
