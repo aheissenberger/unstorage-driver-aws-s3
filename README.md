@@ -2,7 +2,7 @@
 
 AWS S3 driver for [unstorage](https://unstorage.unjs.io).
 
-This driver uses the S3 storage as a key value store.
+This driver uses a S3 bucket as a key value store.
 
 ## Installation
 

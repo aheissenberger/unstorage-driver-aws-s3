@@ -67,11 +67,18 @@ export default defineDriver((opts: S3StorageOptions) => {
             return null;
         }
 
-        if (ttl > 0) {
-            const ttlItem = parseInt(response.Metadata?.ttl ?? '0') || 0;
-            const timestamp = getTimestamp();
-            if (timestamp > ttlItem) {
+        if (ttl > 0 && response?.ExpiresString !== undefined) {
+            if (new Date(response.ExpiresString) < new Date()) {
+                await removeItem(key)
                 return null;
+            }
+            if (response?.LastModified !== undefined) {
+                const lastModified = (response.LastModified.getTime() / 1000) || 0;
+                const timestamp = getTimestamp();
+                if (timestamp > (lastModified + ttl)) {
+                    await removeItem(key)
+                    return null;
+                }
             }
         }
 
@@ -94,9 +101,7 @@ export default defineDriver((opts: S3StorageOptions) => {
                 Bucket: opts.bucket,
                 Key: createKey(key),
                 Body: value,
-                Metadata: {
-                    'ttl': String(Math.round(Date.now() / 1000) + ttlOverride),
-                },
+                Expires: ttlOverride > 0 ? new Date(Date.now() + ttlOverride * 1000) : undefined,
             })
         );
     }
