@@ -1,0 +1,45 @@
+{
+  "name": "unstorage-driver-aws-s3",
+  "version": "1.0.2",
+  "description": "AWS S3 driver for unstorage",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup-node",
+    "prepublishOnly": "tsc && npm run build",
+    "test": "jest"
+  },
+  "keywords": [
+    "unstorage",
+    "aws",
+    "s3",
+    "driver"
+  ],
+  "author": "Andreas Heissenberger <andreas@heissenberger.at>",
+  "license": "bsd-2-clause",
+  "homepage": "https://github.com/aheissenberger/unstorage-driver-aws-s3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aheissenberger/unstorage-driver-aws-s3.git"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.509.0",
+    "@types/jest": "^29.5.12",
+    "aws-sdk-client-mock": "^3.0.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "unstorage": "^1.10.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
