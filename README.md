@@ -1,6 +1,6 @@
 # unstorage-driver-aws-s3
 
-AWS S3 driver for [unstorage](https://unstorage.unjs.io).
+AWS S3 bucket driver for [unstorage](https://unstorage.unjs.io).
 
 This driver uses a S3 bucket as a key value store.
 
@@ -43,32 +43,7 @@ const storage = createStorage({
 });
 ```
 
-Temporary configurations:
-
-```js
-import { createStorage } from "unstorage";
-import s3CacheDriver from "unstorage/drivers/aws-s3";
-
-const storage = createStorage({
-  driver: s3CacheDriver({
-    bucket: "my-bucket-name", // required
-    ttl: 300, // optional, values in seconds or 0 to disable
-  }),
-});
-```
-
-When `ttl` is set to a number greater than 0 the driver will add seconds to the current timestamp and set the TTL attribute.
-Otherwise removing the `ttl` option or setting it to 0 will disable this functionality.
-
-The `setItem` method support an additional options which allows you to override the general `ttl` option:
-
-```js
-await storage.setItem("key", "value", { ttl: 900 });
-```
-
-Since the S3 items deletion is asynchronous the driver will check the validity of the TTL attribute before returning them from `getItem`. `getKeys` cannot check for TTL. This in order to ensure that no expired items will be returned.
-
-**Authentication:**
+#### Authentication:
 
 The driver supports the default [AWS SDK credentials](https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/setting-credentials-node.html).
 
@@ -80,20 +55,34 @@ The IAM role or IAM user that use the driver need the following permissions:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["s3:GetItem", "s3:PutItem", "s3:Scan", "s3:DeleteItem"],
-      "Resource": "arn:aws:s3:*:*:table/my-table-name"
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:*:*:BUCKET_NAME"
     }
   ]
 }
 ```
 
-**Options:**
+#### Options:
 
 - `bucket`: The name of the S3 bucket.
 - `prefix`: The key prefix.
 - `region`: The AWS region to use.
 - `credentials`: The AWS SDK credentials object.
-- `ttl`: The number of seconds to add to the current timestamp to set the TTL attribute. Set to 0 to disable it.
+- `ttl`: The number of seconds to add to the current timestamp to set the TTL attribute. Set to 0 to disable it. See [TTL Limitations](#ttl-limitations) (Default: 0)
+- `ttlUpdateLastModified`: Delete existing Objects on `setItem` to allways update the `LastModified` timestamp. This will add an extra `DeleteObjectCommand` call to the s3 api. This Option is only activated when `ttl > 0` (Default: false)
+
+#### TTL Limitations:
+
+Based on constrains of the AWS S3 architecture the following limitations exist and have an impact when TTL is set:
+
+- The S3 `LastModified` attribute and `IfModifiedSince` is used to implement the TTL option. Deletion of expired Objects need to be handled by an [S3 storage lifecycle](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html)
+- Update to an existing object with identical value **will not change** the LastModify timestamp of the object set on creation.
+- Use option `ttlUpdateLastModified` if you need this, but keep in mind that S3 does not support transactions and there is the risk that two different `setItem` overlap and the wrong one is deleted
 
 ### Contribution
 
