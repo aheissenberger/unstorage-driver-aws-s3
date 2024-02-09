@@ -1,6 +1,6 @@
 {
   "name": "unstorage-driver-aws-s3",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "AWS S3 bucket driver for unstorage",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
